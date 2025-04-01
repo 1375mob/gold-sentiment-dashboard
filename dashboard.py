@@ -10,7 +10,7 @@ uploaded_file = st.file_uploader("Upload your Gold Futures Excel file (.xls or .
 if uploaded_file:
     try:
         # Clean CME-style file by skipping headers
-        raw_df = pd.read_excel(uploaded_file, skiprows=4)
+        raw_df = pd.read_excel(uploaded_file, skiprows=4, engine="openpyxl")
 
         # Rename columns to standard names expected by the dashboard
         df = raw_df.rename(columns={
