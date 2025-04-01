@@ -17,15 +17,24 @@ try:
 
     records = data['volumeOpenInterestRecords']
 
-    # Parse relevant fields
+    # DEBUG: Show sample of raw data
+    if st.checkbox("Show raw CME data"):
+        st.write(records[:3])
+
+    # Parse records without filtering by productCode
     futures_data = pd.DataFrame([{
         'Date': r['tradeDate'],
         'Volume': int(r['volume'].replace(',', '')) if r['volume'] else 0,
         'Open Interest': int(r['openInterest'].replace(',', '')) if r['openInterest'] else 0,
         'Deliveries': int(r['deliveries'].replace(',', '')) if r['deliveries'] else 0,
         'Block Trades': int(r['blockTrades'].replace(',', '')) if r['blockTrades'] else 0,
-        'Price': None  # Placeholder since price isn't in this feed
-    } for r in records if r['productCode'] == 'GC'])
+        'Product': r['productCode']
+    } for r in records if r['volume'] and r['openInterest']])
+
+    # Optional filter: allow user to select product
+    products = futures_data['Product'].unique().tolist()
+    selected_product = st.selectbox("Choose Product Code", options=products, index=products.index("GC") if "GC" in products else 0)
+    futures_data = futures_data[futures_data['Product'] == selected_product]
 
     futures_data = futures_data.sort_values(by='Date')
     futures_data['OI Change'] = futures_data['Open Interest'].diff().fillna(0)
