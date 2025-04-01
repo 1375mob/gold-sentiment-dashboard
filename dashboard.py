@@ -6,26 +6,29 @@ import requests
 st.set_page_config(page_title="ToroFX Gold Dashboard", layout="wide")
 st.title("📊 ToroFX Market Sentiment Dashboard - Gold (XAUUSD)")
 
-# Pull live data from CME if available
+# Pull live data from CME JSON endpoint
 try:
     st.info("Pulling live gold volume and open interest data from CME...")
 
-    # Simulated example — this should be replaced with actual endpoint once verified
-    # Example endpoint structure (pseudo):
-    # url = "https://www.cmegroup.com/CmeWS/mvc/Volume/OpenInterest/Details/123/G"
-    # For now, use fallback data (demo)
+    # Live endpoint for Gold Futures volume/OI data
+    url = "https://www.cmegroup.com/CmeWS/mvc/Volume/OpenInterest/Details/FUT/G"
+    response = requests.get(url)
+    data = response.json()
 
-    # Replace this with actual fetched/parsed data from CME JSON endpoint
-    futures_data = pd.DataFrame({
-        'Date': ['Mar 26', 'Mar 27', 'Mar 28'],
-        'Price': [2188.4, 2204.7, 2221.3],
-        'Volume': [239000, 248000, 250631],
-        'Open Interest': [467637, 512637, 574824],
-        'OI Change': [17500, 45000, 62187],
-        'Deliveries': [88, 123, 521],
-        'Block Trades': [1967, 2453, 3071]
-    })
+    records = data['volumeOpenInterestRecords']
 
+    # Parse relevant fields
+    futures_data = pd.DataFrame([{
+        'Date': r['tradeDate'],
+        'Volume': int(r['volume'].replace(',', '')) if r['volume'] else 0,
+        'Open Interest': int(r['openInterest'].replace(',', '')) if r['openInterest'] else 0,
+        'Deliveries': int(r['deliveries'].replace(',', '')) if r['deliveries'] else 0,
+        'Block Trades': int(r['blockTrades'].replace(',', '')) if r['blockTrades'] else 0,
+        'Price': None  # Placeholder since price isn't in this feed
+    } for r in records if r['productCode'] == 'GC'])
+
+    futures_data = futures_data.sort_values(by='Date')
+    futures_data['OI Change'] = futures_data['Open Interest'].diff().fillna(0)
     futures_data['% OI Change'] = futures_data['Open Interest'].pct_change().fillna(0) * 100
     futures_data['% Volume Change'] = futures_data['Volume'].pct_change().fillna(0) * 100
 
@@ -38,11 +41,11 @@ try:
 
     def generate_commentary(row):
         if row['Signal'] == "📈 Bullish Spike":
-            return f"On {row['Date']}, market sentiment turned notably bullish as open interest and trading volume increased significantly. Gold prices advanced to ${row['Price']}, reflecting strong institutional participation."
+            return f"On {row['Date']}, market sentiment turned notably bullish with open interest and volume rising significantly."
         elif row['Signal'] == "⚠️ OI Drop":
-            return f"On {row['Date']}, a decline in open interest was observed while gold prices remained near ${row['Price']}, indicating potential profit-taking or position unwinding."
+            return f"On {row['Date']}, a drop in open interest was observed, suggesting possible profit-taking or position unwinding."
         else:
-            return f"On {row['Date']}, gold markets exhibited stability around ${row['Price']}, with no significant shifts in open interest or volume to indicate directional conviction."
+            return f"On {row['Date']}, gold futures remained stable with no major changes in open interest or volume."
 
     futures_data['Commentary'] = futures_data.apply(generate_commentary, axis=1)
 
@@ -69,7 +72,7 @@ try:
 
     with col2:
         st.subheader("Daily Sentiment Metrics")
-        st.dataframe(futures_data[['Date', 'Price', 'Signal', 'Sentiment Score']], use_container_width=True)
+        st.dataframe(futures_data[['Date', 'Volume', 'Open Interest', 'Signal', 'Sentiment Score']], use_container_width=True)
 
     st.subheader("AI-Generated Commentary")
     for _, row in futures_data.iterrows():
