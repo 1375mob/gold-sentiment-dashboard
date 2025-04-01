@@ -9,8 +9,8 @@ uploaded_file = st.file_uploader("Upload your Gold Futures Excel file (.xls or .
 
 if uploaded_file:
     try:
-        # Clean CME-style file by skipping headers
-        raw_df = pd.read_excel(uploaded_file, skiprows=4, engine="openpyxl")
+        # Skip only 2 rows to grab correct headers
+        raw_df = pd.read_excel(uploaded_file, skiprows=2, engine="openpyxl")
 
         # Show raw column names for debugging
         st.subheader("Raw Excel Column Names")
@@ -20,7 +20,7 @@ if uploaded_file:
         st.subheader("Raw Data Preview")
         st.dataframe(raw_df.head())
 
-        # Rename columns to standard names expected by the dashboard
+        # Rename columns to match what's shown in your preview
         df = raw_df.rename(columns={
             'Futures': 'Date',
             'Total Volume': 'Volume',
@@ -32,6 +32,10 @@ if uploaded_file:
 
         # Drop rows where Volume or Open Interest is missing
         df = df.dropna(subset=['Date', 'Volume', 'Open Interest'])
+
+        # Clean number columns
+        for col in ['Volume', 'Open Interest', 'Deliveries', 'Block Trades', 'OI Change']:
+            df[col] = df[col].astype(str).str.replace(',', '').astype(float)
 
         # Format and compute additional fields
         df['Date'] = df['Date'].astype(str)
