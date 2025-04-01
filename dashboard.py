@@ -9,24 +9,33 @@ uploaded_file = st.file_uploader("Upload your Gold Futures Excel file (.xls or .
 
 if uploaded_file:
     try:
-        df = pd.read_excel(uploaded_file)
-        st.success("File uploaded and loaded successfully.")
+        # Clean CME-style file by skipping headers
+        raw_df = pd.read_excel(uploaded_file, skiprows=4)
 
-        # Expecting columns: Date, Price, Volume, Open Interest, Deliveries, Block Trades
-        futures_data = df.copy()
-        futures_data = futures_data.dropna(subset=['Date', 'Volume', 'Open Interest'])
+        # Rename columns to standard names expected by the dashboard
+        df = raw_df.rename(columns={
+            'Futures': 'Date',
+            'Total Volume': 'Volume',
+            'At Close': 'Open Interest',
+            'Deliveries': 'Deliveries',
+            'Block Trades': 'Block Trades',
+            'Change': 'OI Change'
+        })
 
-        # Clean and format
-        futures_data['Date'] = pd.to_datetime(futures_data['Date']).dt.strftime('%b %d')
-        futures_data['OI Change'] = futures_data['Open Interest'].diff().fillna(0)
-        futures_data['% OI Change'] = futures_data['Open Interest'].pct_change().fillna(0) * 100
-        futures_data['% Volume Change'] = futures_data['Volume'].pct_change().fillna(0) * 100
+        # Drop rows where Volume or Open Interest is missing
+        df = df.dropna(subset=['Date', 'Volume', 'Open Interest'])
 
-        futures_data['Signal'] = futures_data.apply(
+        # Format and compute additional fields
+        df['Date'] = df['Date'].astype(str)
+        df['Price'] = None
+        df['% OI Change'] = df['Open Interest'].pct_change().fillna(0) * 100
+        df['% Volume Change'] = df['Volume'].pct_change().fillna(0) * 100
+
+        df['Signal'] = df.apply(
             lambda row: "📈 Bullish Spike" if row['% OI Change'] > 5 and row['% Volume Change'] > 2
             else ("⚠️ OI Drop" if row['% OI Change'] < -3 else "🔄 Stable"), axis=1)
 
-        futures_data['Sentiment Score'] = futures_data.apply(lambda row: round(min(max(
+        df['Sentiment Score'] = df.apply(lambda row: round(min(max(
             row.get('% OI Change', 0)/10 + row.get('% Volume Change', 0)/20 + row.get('Block Trades', 0)/1000 + row.get('Deliveries', 0)/1000, -1), 1), 2), axis=1)
 
         def generate_commentary(row):
@@ -37,13 +46,13 @@ if uploaded_file:
             else:
                 return f"On {row['Date']}, gold futures remained stable with no major changes in open interest or volume."
 
-        futures_data['Commentary'] = futures_data.apply(generate_commentary, axis=1)
+        df['Commentary'] = df.apply(generate_commentary, axis=1)
 
         col1, col2 = st.columns([3, 2])
 
         with col1:
             st.subheader("Open Interest & Volume")
-            chart_data = futures_data.copy()
+            chart_data = df.copy()
             chart_data['Date'] = pd.Categorical(chart_data['Date'], categories=chart_data['Date'], ordered=True)
 
             volume_bar = alt.Chart(chart_data).mark_bar(color="#40E0D0").encode(
@@ -62,13 +71,13 @@ if uploaded_file:
 
         with col2:
             st.subheader("Daily Sentiment Metrics")
-            st.dataframe(futures_data[['Date', 'Price', 'Signal', 'Sentiment Score']], use_container_width=True)
+            st.dataframe(df[['Date', 'Price', 'Signal', 'Sentiment Score']], use_container_width=True)
 
         st.subheader("AI-Generated Commentary")
-        for _, row in futures_data.iterrows():
+        for _, row in df.iterrows():
             st.markdown(f"**{row['Date']}** — {row['Commentary']}")
 
     except Exception as e:
         st.error(f"Failed to process file. Reason: {e}")
 else:
-    st.info("Please upload a gold futures Excel file with columns: Date, Price, Volume, Open Interest, Deliveries, Block Trades.")
+    st.info("Please upload a CME Gold Excel file with columns like: Futures, Total Volume, At Close, Deliveries, Block Trades, Change.")
