@@ -12,17 +12,13 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file)
         st.success("File uploaded and loaded successfully.")
 
-        # Fallback sample structure (adjust this based on your real Excel file)
-        futures_data = pd.DataFrame({
-            'Date': ['Mar 26', 'Mar 27', 'Mar 28'],
-            'Price': [2188.4, 2204.7, 2221.3],
-            'Volume': [239000, 248000, 250631],
-            'Open Interest': [467637, 512637, 574824],
-            'OI Change': [17500, 45000, 62187],
-            'Deliveries': [88, 123, 521],
-            'Block Trades': [1967, 2453, 3071]
-        })
+        # Expecting columns: Date, Price, Volume, Open Interest, Deliveries, Block Trades
+        futures_data = df.copy()
+        futures_data = futures_data.dropna(subset=['Date', 'Volume', 'Open Interest'])
 
+        # Clean and format
+        futures_data['Date'] = pd.to_datetime(futures_data['Date']).dt.strftime('%b %d')
+        futures_data['OI Change'] = futures_data['Open Interest'].diff().fillna(0)
         futures_data['% OI Change'] = futures_data['Open Interest'].pct_change().fillna(0) * 100
         futures_data['% Volume Change'] = futures_data['Volume'].pct_change().fillna(0) * 100
 
@@ -31,7 +27,7 @@ if uploaded_file:
             else ("⚠️ OI Drop" if row['% OI Change'] < -3 else "🔄 Stable"), axis=1)
 
         futures_data['Sentiment Score'] = futures_data.apply(lambda row: round(min(max(
-            row['% OI Change']/10 + row['% Volume Change']/20 + row['Block Trades']/1000 + row['Deliveries']/1000, -1), 1), 2), axis=1)
+            row.get('% OI Change', 0)/10 + row.get('% Volume Change', 0)/20 + row.get('Block Trades', 0)/1000 + row.get('Deliveries', 0)/1000, -1), 1), 2), axis=1)
 
         def generate_commentary(row):
             if row['Signal'] == "📈 Bullish Spike":
@@ -75,4 +71,4 @@ if uploaded_file:
     except Exception as e:
         st.error(f"Failed to process file. Reason: {e}")
 else:
-    st.info("Please upload a gold futures Excel file to begin.")
+    st.info("Please upload a gold futures Excel file with columns: Date, Price, Volume, Open Interest, Deliveries, Block Trades.")
