@@ -12,6 +12,14 @@ if uploaded_file:
         # Clean CME-style file by skipping headers
         raw_df = pd.read_excel(uploaded_file, skiprows=4, engine="openpyxl")
 
+        # Show raw column names for debugging
+        st.subheader("Raw Excel Column Names")
+        st.write(list(raw_df.columns))
+
+        # Show preview of uploaded data
+        st.subheader("Raw Data Preview")
+        st.dataframe(raw_df.head())
+
         # Rename columns to standard names expected by the dashboard
         df = raw_df.rename(columns={
             'Futures': 'Date',
